@@ -4,41 +4,70 @@ Built with the raw Gemini API rather than LangChain/CrewAI to keep the agent's d
 
 A minimal Python agent that analyzes social content intent, chooses a platform and tone, then generates a ready-to-post draft with `gemini-2.5-flash`.
 
-## What "agent" means here
+## Getting Started
 
-In this project, an agent is a small workflow with explicit decision steps: analyze → generate. It is not just one direct API call. The agent first validates the input, asks Gemini to classify the best platform and tone, then uses that decision to generate a platform-appropriate post.
+1. Clone the repo:
 
-## Setup
+   ```bash
+   git clone https://github.com/SameerAhmedAI/Digital-FTE-Agent.git
+   cd Digital-FTE-Agent
+   ```
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
+2. Create and activate a virtual environment:
+
+   Windows:
+
+   ```bat
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+
+   Mac/Linux:
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Copy `.env.example` to `.env`.
-4. Add your Gemini API key:
+4. Copy `.env.example` to `.env` and add your own `GEMINI_API_KEY`. A free key can be obtained at [aistudio.google.com](https://aistudio.google.com/).
 
-   ```env
-   GEMINI_API_KEY=
+   Windows:
+
+   ```bat
+   copy .env.example .env
    ```
 
-## Usage
+   Mac/Linux:
 
-Run with a text flag:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-python main.py --text "We just launched an AI assistant that helps small teams repurpose meeting notes into social posts."
-```
+5. Run via CLI:
 
-Or run interactively:
+   ```bash
+   python main.py --text "Your topic here"
+   ```
 
-```bash
-python main.py
-```
+6. Run via UI:
 
-Sample output:
+   ```bash
+   streamlit run app.py
+   ```
+
+   Streamlit opens automatically in your browser at `localhost:8501`.
+
+## What "agent" means here
+
+In this project, an agent is a small workflow with explicit decision steps: analyze → generate. It is not just one direct API call. The agent first validates the input, asks Gemini to classify the best platform and tone, then uses that decision to generate a platform-appropriate post.
+
+## Sample Output
 
 ```text
 Platform: LinkedIn
@@ -51,33 +80,20 @@ Instead of starting from a blank page, teams can capture the key ideas from a me
 If your team is trying to stay visible without adding more manual content work, this is exactly the kind of workflow we built it for.
 ```
 
-Each successful run is appended to `outputs/history.json` with a UTC timestamp.
-
-## Running the UI
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Start the Streamlit app:
-
-```bash
-streamlit run app.py
-```
-
-Streamlit opens automatically in your browser at `localhost:8501`.
+Each successful CLI run is appended to `outputs/history.json` with a UTC timestamp.
 
 ## Project Structure
 
 ```text
 digital-fte-agent/
+├── app.py
 ├── main.py
 ├── requirements.txt
 ├── README.md
 ├── .env.example
 ├── .gitignore
+├── .streamlit/
+│   └── config.toml
 ├── outputs/
 │   └── history.json
 ├── src/
