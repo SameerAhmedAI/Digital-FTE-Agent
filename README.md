@@ -1,12 +1,12 @@
 # digital-fte-agent
 
-Built with the raw OpenAI API rather than LangChain/CrewAI to keep the agent's decision logic transparent and avoid unnecessary abstraction — the task listed raw API as an accepted approach.
+Built with the raw Gemini API rather than LangChain/CrewAI to keep the agent's decision logic transparent and avoid unnecessary abstraction.
 
-A minimal Python agent that analyzes social content intent, chooses a platform and tone, then generates a ready-to-post draft.
+A minimal Python agent that analyzes social content intent, chooses a platform and tone, then generates a ready-to-post draft with `gemini-2.5-flash`.
 
 ## What "agent" means here
 
-In this project, an agent is a small workflow with explicit decision steps: analyze → generate. It is not just one direct API call. The agent first validates the input, asks OpenAI to classify the best platform and tone, then uses that decision to generate a platform-appropriate post.
+In this project, an agent is a small workflow with explicit decision steps: analyze → generate. It is not just one direct API call. The agent first validates the input, asks Gemini to classify the best platform and tone, then uses that decision to generate a platform-appropriate post.
 
 ## Setup
 
@@ -18,10 +18,10 @@ In this project, an agent is a small workflow with explicit decision steps: anal
    ```
 
 3. Copy `.env.example` to `.env`.
-4. Add your OpenAI API key:
+4. Add your Gemini API key:
 
    ```env
-   OPENAI_API_KEY=
+   GEMINI_API_KEY=
    ```
 
 ## Usage
