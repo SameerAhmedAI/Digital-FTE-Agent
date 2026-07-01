@@ -1,0 +1,2 @@
+class DigitalFTEAgent:
+    pass
