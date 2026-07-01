@@ -1,17 +1,17 @@
-"""Social content agent built on the raw OpenAI SDK."""
+"""Social content agent built on the raw Gemini API."""
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
-from openai import APIConnectionError, APIError, APITimeoutError, AuthenticationError, OpenAI
-from openai import RateLimitError as OpenAIRateLimitError
+from google import genai
 
 try:
-    from .config import OPENAI_API_KEY
+    from .config import GEMINI_API_KEY
 except ImportError:  # pragma: no cover - supports running this file outside a package.
-    from config import OPENAI_API_KEY
+    from config import GEMINI_API_KEY
 
 
 class SocialContentAgentError(Exception):
@@ -23,19 +23,19 @@ class AgentConfigurationError(SocialContentAgentError):
 
 
 class AgentRateLimitError(SocialContentAgentError):
-    """Raised when the OpenAI API rate limit is reached."""
+    """Raised when the Gemini API rate limit is reached."""
 
 
 class AgentTimeoutError(SocialContentAgentError):
-    """Raised when an OpenAI API request times out."""
+    """Raised when a Gemini API request times out."""
 
 
 class AgentAuthenticationError(SocialContentAgentError):
-    """Raised when the OpenAI API key is invalid or unauthorized."""
+    """Raised when the Gemini API key is invalid or unauthorized."""
 
 
 class AgentAPIError(SocialContentAgentError):
-    """Raised when the OpenAI API request fails for another reason."""
+    """Raised when the Gemini API request fails for another reason."""
 
 
 class SocialContentAgent:
@@ -44,21 +44,21 @@ class SocialContentAgent:
     VALID_PLATFORMS = {"LinkedIn", "Twitter", "Instagram"}
     VALID_TONES = {"professional", "casual", "promotional"}
 
-    def __init__(self, api_key: str | None = OPENAI_API_KEY, model: str = "gpt-4o-mini") -> None:
-        """Initialize the agent with an OpenAI API key and model name.
+    def __init__(self, api_key: str | None = GEMINI_API_KEY, model: str = "gemini-2.5-flash") -> None:
+        """Initialize the agent with a Gemini API key and model name.
 
         Args:
-            api_key: OpenAI API key. Defaults to the key loaded from the environment.
-            model: OpenAI model used for analysis and generation.
+            api_key: Gemini API key. Defaults to the key loaded from the environment.
+            model: Gemini model used for analysis and generation.
 
         Raises:
             AgentConfigurationError: If no API key is provided.
         """
         if not isinstance(api_key, str) or not api_key.strip():
-            raise AgentConfigurationError("OPENAI_API_KEY is required to use SocialContentAgent.")
+            raise AgentConfigurationError("GEMINI_API_KEY is required to use SocialContentAgent.")
 
         self.model = model
-        self.client = OpenAI(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
 
     def take_input(self, text: str) -> str:
         """Validate and normalize input text.
@@ -92,7 +92,7 @@ class SocialContentAgent:
 
         Raises:
             ValueError: If the model returns an unsupported platform or tone.
-            SocialContentAgentError: If the OpenAI API request fails.
+            SocialContentAgentError: If the Gemini API request fails.
         """
         prompt = (
             "Classify the best social platform and tone for this content. "
@@ -101,16 +101,34 @@ class SocialContentAgent:
             "tone must be one of professional, casual, promotional.\n\n"
             f"Content:\n{text}"
         )
-        content = self._chat_completion(
-            system_message="You are a concise social media strategy assistant.",
-            user_message=prompt,
-            response_format={"type": "json_object"},
+        content = self._generate_content(
+            system_instruction="You are a concise social media strategy assistant.",
+            prompt=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "platform": {
+                            "type": "string",
+                            "enum": ["LinkedIn", "Twitter", "Instagram"],
+                        },
+                        "tone": {
+                            "type": "string",
+                            "enum": ["professional", "casual", "promotional"],
+                        },
+                    },
+                    "required": ["platform", "tone"],
+                },
+            },
         )
+        normalized_content = self._strip_markdown_code_fence(content)
 
         try:
-            result = json.loads(content)
+            result = json.loads(normalized_content)
         except json.JSONDecodeError as exc:
-            raise AgentAPIError("OpenAI returned an invalid analysis response.") from exc
+            print(f"Raw Gemini analysis response: {content}")
+            raise AgentAPIError("Gemini returned an invalid analysis response.") from exc
 
         platform = result.get("platform")
         tone = result.get("tone")
@@ -134,7 +152,7 @@ class SocialContentAgent:
 
         Raises:
             ValueError: If platform or tone is unsupported.
-            SocialContentAgentError: If the OpenAI API request fails.
+            SocialContentAgentError: If the Gemini API request fails.
         """
         if platform not in self.VALID_PLATFORMS:
             raise ValueError(f"Unsupported platform: {platform!r}.")
@@ -147,9 +165,9 @@ class SocialContentAgent:
             "Return only the post text.\n\n"
             f"Source content:\n{text}"
         )
-        return self._chat_completion(
-            system_message="You write clear, platform-aware social media content.",
-            user_message=prompt,
+        return self._generate_content(
+            system_instruction="You write clear, platform-aware social media content.",
+            prompt=prompt,
         )
 
     def run(self, text: str) -> dict[str, str | dict[str, str]]:
@@ -163,7 +181,7 @@ class SocialContentAgent:
 
         Raises:
             ValueError: If input, platform, or tone validation fails.
-            SocialContentAgentError: If configuration or OpenAI API calls fail.
+            SocialContentAgentError: If configuration or Gemini API calls fail.
         """
         validated_text = self.take_input(text)
         analysis = self.analyze(validated_text)
@@ -175,38 +193,61 @@ class SocialContentAgent:
             "post": post,
         }
 
-    def _chat_completion(
+    def _generate_content(
         self,
-        system_message: str,
-        user_message: str,
-        response_format: dict[str, str] | None = None,
+        system_instruction: str,
+        prompt: str,
+        config: dict[str, Any] | None = None,
     ) -> str:
-        """Call OpenAI chat completions and normalize known API failures."""
-        request: dict[str, Any] = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
-            ],
-        }
-        if response_format is not None:
-            request["response_format"] = response_format
+        """Call Gemini and normalize known API failures."""
+        request_config: dict[str, Any] = {"system_instruction": system_instruction}
+        if config is not None:
+            request_config.update(config)
 
         try:
-            response = self.client.chat.completions.create(**request)
-        except AuthenticationError as exc:
-            raise AgentAuthenticationError("OpenAI API key is invalid or unauthorized.") from exc
-        except OpenAIRateLimitError as exc:
-            raise AgentRateLimitError("OpenAI API rate limit reached. Try again later.") from exc
-        except APITimeoutError as exc:
-            raise AgentTimeoutError("OpenAI API request timed out. Try again later.") from exc
-        except APIConnectionError as exc:
-            raise AgentAPIError("Could not connect to the OpenAI API.") from exc
-        except APIError as exc:
-            raise AgentAPIError("OpenAI API request failed.") from exc
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=request_config,
+            )
+        except Exception as exc:
+            self._raise_agent_error(exc)
 
-        content = response.choices[0].message.content
+        content = self._extract_response_text(response)
         if not content:
-            raise AgentAPIError("OpenAI returned an empty response.")
+            raise AgentAPIError("Gemini returned an empty response.")
 
         return content.strip()
+
+    def _extract_response_text(self, response: Any) -> str:
+        """Extract text from a Gemini SDK response object."""
+        content = getattr(response, "text", None)
+        if isinstance(content, str):
+            return content
+        return ""
+
+    def _strip_markdown_code_fence(self, text: str) -> str:
+        """Remove optional markdown code fences around JSON text."""
+        stripped = text.strip()
+        fenced_match = re.fullmatch(
+            r"```(?:json)?\s*(.*?)\s*```",
+            stripped,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if fenced_match:
+            return fenced_match.group(1).strip()
+        return stripped
+
+    def _raise_agent_error(self, exc: Exception) -> None:
+        """Convert Gemini SDK exceptions into project-level exceptions."""
+        status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        message = str(exc).lower()
+
+        if isinstance(exc, TimeoutError) or "timeout" in message:
+            raise AgentTimeoutError("Gemini API request timed out. Try again later.") from exc
+        if status_code in {401, 403} or "api key" in message or "unauthorized" in message:
+            raise AgentAuthenticationError("Gemini API key is invalid or unauthorized.") from exc
+        if status_code == 429 or "rate limit" in message or "quota" in message:
+            raise AgentRateLimitError("Gemini API rate limit reached. Try again later.") from exc
+
+        raise AgentAPIError("Gemini API request failed.") from exc
