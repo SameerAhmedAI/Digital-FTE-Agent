@@ -1,3 +1,5 @@
+"""Environment configuration for the social content agent."""
+
 import os
 
 from dotenv import load_dotenv

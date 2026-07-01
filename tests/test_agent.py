@@ -1,8 +1,11 @@
+"""Tests for the social content agent."""
+
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import httpx
 import pytest
 from openai import APIError
 
@@ -14,6 +17,7 @@ from src.agent import AgentAPIError, SocialContentAgent
 
 
 def make_response(content: str) -> SimpleNamespace:
+    """Create a minimal mocked OpenAI chat completion response."""
     return SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
     )
@@ -40,7 +44,8 @@ def test_successful_run_mocks_openai_calls() -> None:
 def test_api_failure_is_wrapped() -> None:
     agent = SocialContentAgent(api_key="test-key")
     agent.client = Mock()
-    sdk_error = APIError("SDK failure", request=Mock(), body=None)
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    sdk_error = APIError("SDK failure", request=request, body=None)
     agent.client.chat.completions.create.side_effect = sdk_error
 
     with pytest.raises(AgentAPIError, match="OpenAI API request failed"):
