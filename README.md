@@ -53,6 +53,22 @@ If your team is trying to stay visible without adding more manual content work, 
 
 Each successful run is appended to `outputs/history.json` with a UTC timestamp.
 
+## Running the UI
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Start the Streamlit app:
+
+```bash
+streamlit run app.py
+```
+
+Streamlit opens automatically in your browser at `localhost:8501`.
+
 ## Project Structure
 
 ```text
