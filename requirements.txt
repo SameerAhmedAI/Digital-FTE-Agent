@@ -1,4 +1,5 @@
 google-genai
 python-dotenv
 pytest
-streamlit
+fastapi
+uvicorn
