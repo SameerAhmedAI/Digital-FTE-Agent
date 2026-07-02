@@ -1,12 +1,24 @@
 # digital-fte-agent
 
-Built with the raw Gemini API rather than LangChain/CrewAI to keep the agent's decision logic transparent and avoid unnecessary abstraction.
+A Python social-content agent that takes an input topic or announcement, analyzes it, decides the best platform and tone, then generates a platform-ready post using Gemini.
 
-A minimal Python agent that analyzes social content intent, chooses a platform and tone, then generates a ready-to-post draft with `gemini-2.5-flash`.
+The agent uses the raw Gemini API rather than LangChain/CrewAI to keep the decision logic transparent and avoid unnecessary abstraction. The task listed raw API as an accepted approach.
 
-## Getting Started
+## Architecture
 
-1. Clone the repo:
+```text
+Python agent (src/agent.py)
+  -> FastAPI backend (src/api.py, POST /generate)
+  -> Next.js frontend (frontend/)
+```
+
+- `src/agent.py` owns the agent workflow: validate input -> analyze platform/tone -> generate post.
+- `src/api.py` exposes the workflow over HTTP at `POST /generate`.
+- `frontend/` calls the backend from a Next.js UI running at `http://localhost:3000`.
+
+## Backend Setup
+
+1. Clone the repo and enter the project:
 
    ```bash
    git clone https://github.com/SameerAhmedAI/Digital-FTE-Agent.git
@@ -25,7 +37,7 @@ A minimal Python agent that analyzes social content intent, chooses a platform a
    Mac/Linux:
 
    ```bash
-   python3 -m venv venv
+   python -m venv venv
    source venv/bin/activate
    ```
 
@@ -35,7 +47,7 @@ A minimal Python agent that analyzes social content intent, chooses a platform a
    pip install -r requirements.txt
    ```
 
-4. Copy `.env.example` to `.env` and add your own `GEMINI_API_KEY`. A free key can be obtained at [aistudio.google.com](https://aistudio.google.com/).
+4. Copy `.env.example` to `.env` and add your `GEMINI_API_KEY`. A free key can be obtained at [aistudio.google.com](https://aistudio.google.com/).
 
    Windows:
 
@@ -49,55 +61,68 @@ A minimal Python agent that analyzes social content intent, chooses a platform a
    cp .env.example .env
    ```
 
-5. Run via CLI:
+5. Start the backend:
 
    ```bash
-   python main.py --text "Your topic here"
+   uvicorn src.api:app --reload
    ```
 
-6. Run via UI:
+## Frontend Setup
 
-   ```bash
-   streamlit run app.py
-   ```
+Open a separate terminal:
 
-   Streamlit opens automatically in your browser at `localhost:8501`.
-
-## What "agent" means here
-
-In this project, an agent is a small workflow with explicit decision steps: analyze → generate. It is not just one direct API call. The agent first validates the input, asks Gemini to classify the best platform and tone, then uses that decision to generate a platform-appropriate post.
-
-## Sample Output
-
-```text
-Platform: LinkedIn
-Tone: professional
-Post:
-We just launched an AI assistant built for small teams that want to turn meeting notes into useful social content faster.
-
-Instead of starting from a blank page, teams can capture the key ideas from a meeting and transform them into clear, publish-ready posts.
-
-If your team is trying to stay visible without adding more manual content work, this is exactly the kind of workflow we built it for.
+```bash
+cd frontend
+npm install
+npm run dev -- --webpack
 ```
 
-Each successful CLI run is appended to `outputs/history.json` with a UTC timestamp.
+Turbopack is not supported on all platforms. You can also run:
+
+```bash
+npx next dev --webpack
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## CLI Alternative
+
+```bash
+python main.py --text "Your topic here"
+```
+
+## Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
 
 ## Project Structure
 
 ```text
 digital-fte-agent/
-├── app.py
+├── frontend/
+│   ├── app/
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── eslint.config.mjs
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── README.md
+│   └── tsconfig.json
 ├── main.py
 ├── requirements.txt
 ├── README.md
 ├── .env.example
 ├── .gitignore
-├── .streamlit/
-│   └── config.toml
 ├── outputs/
 │   └── history.json
 ├── src/
 │   ├── agent.py
+│   ├── api.py
 │   └── config.py
 └── tests/
     └── test_agent.py
